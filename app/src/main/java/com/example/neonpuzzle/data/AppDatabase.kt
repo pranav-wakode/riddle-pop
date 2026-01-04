@@ -2,26 +2,27 @@ package com.example.neonpuzzle.data
 
 import android.content.Context
 import androidx.room.*
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.Flow // Import Flow
 
-@Entity(tableName = "scores")
+@Entity(tableName = "user_scores")
 data class UserScore(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val gameType: String, // "QUIZ", "SLIDING", "JIGSAW"
+    val gameType: String, 
     val score: Int,
     val timestamp: Long = System.currentTimeMillis()
 )
 
 @Dao
 interface ScoreDao {
-    @Query("SELECT * FROM scores ORDER BY score DESC LIMIT 10")
-    fun getHighScores(): Flow<List<UserScore>>
-
     @Insert
-    suspend fun insertScore(userScore: UserScore)
+    suspend fun insertScore(score: UserScore)
+
+    // Changed to return Flow. This makes it "Live"
+    @Query("SELECT * FROM user_scores")
+    fun getAllScoresFlow(): Flow<List<UserScore>>
 }
 
-@Database(entities = [UserScore::class], version = 1, exportSchema = false)
+@Database(entities = [UserScore::class], version = 3, exportSchema = false) // Bumped version
 abstract class AppDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
 
@@ -35,7 +36,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "neon_puzzle_db"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

@@ -22,7 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex // FIXED: Added missing import
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -47,6 +47,7 @@ fun SlidingPuzzleScreen(onBack: () -> Unit) {
     )
 
     val uiState by viewModel.uiState.collectAsState()
+    // State to toggle the hint visibility
     var showGhostImage by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
@@ -71,29 +72,16 @@ fun SlidingPuzzleScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- TOP BAR (Back & Hint) ---
+            // --- HEADER ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().height(60.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                NeonButton("EXIT", onClick = onBack, color = ErrorRed, modifier = Modifier.height(48.dp))
-                
-                // Hint Button (Visible if image exists)
-                if (uiState.sourceImage != null) {
-                    NeonButton(
-                        text = if(showGhostImage) "HIDE HINT" else "SHOW HINT", 
-                        onClick = { showGhostImage = !showGhostImage },
-                        color = AccentYellow,
-                        modifier = Modifier.height(48.dp)
-                    )
-                } else {
-                    Spacer(modifier = Modifier.width(48.dp))
-                }
+                NeonButton("BACK", onClick = onBack, color = ErrorRed, modifier = Modifier.height(45.dp))
             }
 
             if (uiState.sourceImage == null) {
-                // --- SETUP UI ---
+                // --- SETUP MODE (No Image Selected Yet) ---
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -119,62 +107,78 @@ fun SlidingPuzzleScreen(onBack: () -> Unit) {
                     }
                 }
             } else {
-                // --- GAME UI ---
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(vertical = 16.dp)
+                // --- GAME MODE ---
+                
+                // Score/Moves Header
+                Text("MOVES: ${uiState.moves}", color = TextSecondary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // --- THE PUZZLE BOARD ---
+                Box(
+                    modifier = Modifier
+                        .size(340.dp) // Fixed size for the puzzle area
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardBackground)
+                        .border(4.dp, PrimaryAction, RoundedCornerShape(12.dp))
                 ) {
-                    Text("MOVES: ${uiState.moves}", color = TextSecondary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(340.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CardBackground)
-                            .border(4.dp, PrimaryAction, RoundedCornerShape(12.dp))
+                    // 1. THE TILES (Game Grid) - Rendered First (Bottom Layer)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(uiState.gridSize),
+                        modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = false
                     ) {
-                        // Ghost Image
-                        if (showGhostImage && uiState.sourceImage != null) {
-                            Image(
-                                bitmap = PuzzleUtils.getCroppedSquare(uiState.sourceImage!!).asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize().alpha(0.5f),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-
-                        // Tiles
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(uiState.gridSize),
-                            modifier = Modifier.fillMaxSize(),
-                            userScrollEnabled = false
-                        ) {
-                            items(uiState.tiles.size) { index ->
-                                val tileId = uiState.tiles[index]
-                                val size = uiState.gridSize
-                                if (tileId == (size * size) - 1) {
-                                    Box(modifier = Modifier.aspectRatio(1f))
-                                } else {
-                                    Image(
-                                        bitmap = uiState.imageChunks[tileId].asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .aspectRatio(1f)
-                                            .padding(1.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .clickable { viewModel.onTileClick(index) },
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
+                        items(uiState.tiles.size) { index ->
+                            val tileId = uiState.tiles[index]
+                            val size = uiState.gridSize
+                            
+                            // If this is the "empty" tile slot
+                            if (tileId == (size * size) - 1) {
+                                Box(modifier = Modifier.aspectRatio(1f))
+                            } else {
+                                Image(
+                                    bitmap = uiState.imageChunks[tileId].asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .aspectRatio(1f)
+                                        .padding(1.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { viewModel.onTileClick(index) },
+                                    contentScale = ContentScale.Crop
+                                )
                             }
                         }
                     }
+
+                    // 2. THE HINT OVERLAY (Ghost Image) - Rendered Second (Top Layer)
+                    // We use zIndex to force it above the tiles.
+                    if (showGhostImage && uiState.sourceImage != null) {
+                        Image(
+                            bitmap = PuzzleUtils.getCroppedSquare(uiState.sourceImage!!).asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(0.4f) // Semi-transparent overlay
+                                .zIndex(5f), // Force on top
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
 
-                // --- DIFFICULTY CONTROLS (Footer) ---
+                // --- CONTROLS FOOTER ---
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("DIFFICULTY LEVEL", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+                    
+                    // The Hint Button (Now plainly visible below the puzzle)
+                    NeonButton(
+                        text = if (showGhostImage) "HIDE HINT" else "SHOW HINT",
+                        onClick = { showGhostImage = !showGhostImage },
+                        color = AccentYellow,
+                        modifier = Modifier.fillMaxWidth(0.6f).height(50.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Difficulty Buttons
+                    Text("DIFFICULTY", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),

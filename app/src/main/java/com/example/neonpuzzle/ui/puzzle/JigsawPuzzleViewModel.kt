@@ -36,8 +36,8 @@ class JigsawPuzzleViewModel(private val database: AppDatabase) : ViewModel() {
     fun initializeGame(image: Bitmap, level: String) {
         val (rows, cols) = when(level) {
             "EASY" -> Pair(3, 2)
-            "MODERATE" -> Pair(4, 3)
-            "HARD" -> Pair(6, 4)
+            "MEDIUM" -> Pair(4, 3)
+            "HARD" -> Pair(5, 4)
             else -> Pair(3, 2)
         }
 
@@ -47,7 +47,7 @@ class JigsawPuzzleViewModel(private val database: AppDatabase) : ViewModel() {
                 id = index,
                 bitmap = bmp,
                 correctIndex = index,
-                currentOffset = Offset.Zero, // Will be set by UI
+                currentOffset = Offset.Zero, 
                 isSnapped = false
             )
         }
@@ -63,17 +63,27 @@ class JigsawPuzzleViewModel(private val database: AppDatabase) : ViewModel() {
         }
     }
 
-    // New Function: Called when the UI knows where the tray is
     fun scatterPiecesInTray(trayTop: Float, trayBottom: Float, screenWidth: Float) {
         val currentPieces = _uiState.value.pieces.map { piece ->
             if (piece.isSnapped) piece else piece.copy(
                 currentOffset = Offset(
-                    x = Random.nextFloat() * (screenWidth - 150f), // Keep within width
-                    y = trayTop + Random.nextFloat() * (trayBottom - trayTop - 150f) // Keep within tray height
+                    x = Random.nextFloat() * (screenWidth - 150f), 
+                    y = trayTop + Random.nextFloat() * (trayBottom - trayTop - 150f)
                 )
             )
         }
         _uiState.update { it.copy(pieces = currentPieces) }
+    }
+
+    fun onPieceDragStart(id: Int) {
+        // Bring piece to front (Z-Index logic) by moving to end of list
+        val list = _uiState.value.pieces.toMutableList()
+        val index = list.indexOfFirst { it.id == id }
+        if (index != -1) {
+            val piece = list.removeAt(index)
+            list.add(piece) // Add to end
+            _uiState.update { it.copy(pieces = list) }
+        }
     }
 
     fun onPieceDrag(id: Int, dragAmount: Offset) {
@@ -101,12 +111,10 @@ class JigsawPuzzleViewModel(private val database: AppDatabase) : ViewModel() {
         val diffX = kotlin.math.abs(piece.currentOffset.x - targetX)
         val diffY = kotlin.math.abs(piece.currentOffset.y - targetY)
 
-        // Snap distance 60px
         if (diffX < 60f && diffY < 60f) {
-            list[index] = piece.copy(
-                currentOffset = Offset(targetX, targetY),
-                isSnapped = true
-            )
+            list[index] = piece.copy(currentOffset = Offset(targetX, targetY), isSnapped = true)
+            // Snap piece to "background" layer (start of list) so unsnapped pieces float over it? 
+            // Actually, kept at end is fine, usually solved pieces stay flat.
             _uiState.update { it.copy(pieces = list) }
             checkWin()
         }

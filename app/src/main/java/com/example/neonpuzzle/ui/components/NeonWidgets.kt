@@ -17,9 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalConfiguration // Import for screen size
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -70,7 +70,6 @@ fun NeonButton(
     }
 }
 
-// --- Friendly Card ---
 @Composable
 fun NeonCard(
     modifier: Modifier = Modifier,
@@ -91,73 +90,73 @@ fun NeonCard(
     }
 }
 
-// --- OPTIMIZED CONFETTI SYSTEM (No Lag) ---
-class ConfettiState {
-    var particles = generateParticles(200) // 200 is plenty if they move smooth
-    var lastFrameTime = 0L
+// --- OPTIMIZED CONFETTI SYSTEM ---
+data class ConfettiParticle(
+    var x: Float, var y: Float, var vx: Float, var vy: Float,
+    var color: Color, var rotation: Float, var rotSpeed: Float, var size: Float
+)
 
-    fun update(currentTime: Long) {
-        val dt = if (lastFrameTime == 0L) 0f else (currentTime - lastFrameTime) / 1_000_000_000f
-        lastFrameTime = currentTime
-        
+class OptimizedConfettiState(val screenHeight: Float) {
+    val particles = Array(400) { 
+        ConfettiParticle(0f, 0f, 0f, 0f, Color.White, 0f, 0f, 0f)
+    }
+    init { reset() }
+
+    fun reset() {
+        particles.forEach { p -> resetParticle(p) }
+    }
+
+    private fun resetParticle(p: ConfettiParticle) {
+        p.x = Random.nextFloat() * 1400f // Wide spread
+        p.y = -Random.nextFloat() * screenHeight * 1.5f // Start well above
+        p.vx = (Random.nextFloat() - 0.5f) * 4f
+        p.vy = Random.nextFloat() * 8f + 5f // Faster fall speed
+        p.color = listOf(PrimaryAction, SecondaryAction, AccentYellow, SuccessGreen, Color(0xFFE91E63)).random()
+        p.rotation = Random.nextFloat() * 360f
+        p.rotSpeed = (Random.nextFloat() - 0.5f) * 10f
+        p.size = Random.nextFloat() * 25f + 15f
+    }
+
+    fun update() {
         particles.forEach { p ->
-            p.y += p.vy * 5f // Speed factor
+            p.x += p.vx
+            p.y += p.vy
             p.rotation += p.rotSpeed
+            p.vy += 0.05f 
             
-            // Loop logic
-            if (p.y > 2500f) {
+            // Fall until way past screen bottom
+            if (p.y > screenHeight + 200f) {
                 p.y = -50f
-                p.x = Random.nextFloat() * 1000f
-                p.vy = Random.nextFloat() * 5f + 5f
+                p.x = Random.nextFloat() * 1400f
+                p.vy = Random.nextFloat() * 8f + 5f
             }
         }
     }
-
-    private fun generateParticles(count: Int) = Array(count) {
-        ConfettiParticle(
-            x = Random.nextFloat() * 1080f,
-            y = Random.nextFloat() * -1000f,
-            vx = 0f,
-            vy = Random.nextFloat() * 5f + 5f,
-            color = listOf(PrimaryAction, SecondaryAction, AccentYellow, SuccessGreen).random(),
-            rotation = Random.nextFloat() * 360f,
-            rotSpeed = (Random.nextFloat() - 0.5f) * 10f,
-            size = Random.nextFloat() * 20f + 15f
-        )
-    }
 }
-
-data class ConfettiParticle(
-    var x: Float, var y: Float,
-    var vx: Float, var vy: Float,
-    val color: Color,
-    var rotation: Float,
-    var rotSpeed: Float,
-    val size: Float
-)
 
 @Composable
 fun CelebrationOverlay(visible: Boolean) {
     if (!visible) return
     
-    val confettiState = remember { ConfettiState() }
+    val config = LocalConfiguration.current
+    val screenHeight = config.screenHeightDp.dp.value * config.densityDpi / 160f // Estimate pixels
     
-    // Animation loop using withFrameNanos for smooth 60fps
+    val confettiState = remember { OptimizedConfettiState(screenHeight + 1000f) }
+    
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameNanos { time ->
-                confettiState.update(time)
-            }
+            withFrameNanos { _ -> confettiState.update() }
         }
     }
 
-    Canvas(modifier = Modifier.fillMaxSize().zIndex(100f)) {
+    // Force Z-Index to MAX to cover everything
+    Canvas(modifier = Modifier.fillMaxSize().zIndex(Float.MAX_VALUE)) {
         confettiState.particles.forEach { p ->
             rotate(p.rotation, pivot = Offset(p.x, p.y)) {
                 drawRect(
                     color = p.color,
                     topLeft = Offset(p.x, p.y),
-                    size = Size(p.size, p.size * 0.6f)
+                    size = androidx.compose.ui.geometry.Size(p.size, p.size * 0.6f)
                 )
             }
         }

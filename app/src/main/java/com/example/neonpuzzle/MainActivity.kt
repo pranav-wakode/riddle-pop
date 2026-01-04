@@ -13,7 +13,7 @@ import com.example.neonpuzzle.ui.HomeScreen
 import com.example.neonpuzzle.ui.puzzle.JigsawPuzzleScreen
 import com.example.neonpuzzle.ui.puzzle.SlidingPuzzleScreen
 import com.example.neonpuzzle.ui.quiz.QuizScreen
-import com.example.neonpuzzle.ui.quiz.RiddleLevelScreen // New Import
+import com.example.neonpuzzle.ui.quiz.RiddleLevelScreen
 import com.example.neonpuzzle.ui.theme.NeonPuzzleTheme
 
 class MainActivity : ComponentActivity() {
@@ -28,13 +28,13 @@ class MainActivity : ComponentActivity() {
                     // Home
                     composable("home") {
                         HomeScreen(
-                            onNavigateToQuiz = { navController.navigate("riddle_levels") }, // Changed destination
+                            onNavigateToQuiz = { navController.navigate("riddle_levels") },
                             onNavigateToSliding = { navController.navigate("sliding") },
                             onNavigateToJigsaw = { navController.navigate("jigsaw") }
                         )
                     }
 
-                    // NEW: Riddle Levels Menu
+                    // Riddle Levels
                     composable("riddle_levels") {
                         RiddleLevelScreen(
                             onLevelSelected = { levelId -> 
@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Quiz Game (Accepts Level ID)
+                    // Quiz Game
                     composable(
                         "quiz/{levelId}",
                         arguments = listOf(navArgument("levelId") { type = NavType.IntType })
@@ -52,7 +52,12 @@ class MainActivity : ComponentActivity() {
                         val levelId = backStackEntry.arguments?.getInt("levelId") ?: 1
                         QuizScreen(
                             levelId = levelId,
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onNextLevel = { 
+                                // Pop current quiz and go to next
+                                navController.popBackStack()
+                                navController.navigate("quiz/${levelId + 1}")
+                            }
                         )
                     }
 

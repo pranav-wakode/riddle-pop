@@ -19,12 +19,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.platform.LocalConfiguration // Import for screen size
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
+import androidx.compose.ui.zIndex // Keep import just in case, but removing usage below
 import com.example.neonpuzzle.ui.theme.*
 import kotlin.random.Random
 
@@ -107,10 +107,10 @@ class OptimizedConfettiState(val screenHeight: Float) {
     }
 
     private fun resetParticle(p: ConfettiParticle) {
-        p.x = Random.nextFloat() * 1400f // Wide spread
-        p.y = -Random.nextFloat() * screenHeight * 1.5f // Start well above
+        p.x = Random.nextFloat() * 1400f
+        p.y = -Random.nextFloat() * screenHeight * 1.5f
         p.vx = (Random.nextFloat() - 0.5f) * 4f
-        p.vy = Random.nextFloat() * 8f + 5f // Faster fall speed
+        p.vy = Random.nextFloat() * 8f + 5f
         p.color = listOf(PrimaryAction, SecondaryAction, AccentYellow, SuccessGreen, Color(0xFFE91E63)).random()
         p.rotation = Random.nextFloat() * 360f
         p.rotSpeed = (Random.nextFloat() - 0.5f) * 10f
@@ -124,7 +124,6 @@ class OptimizedConfettiState(val screenHeight: Float) {
             p.rotation += p.rotSpeed
             p.vy += 0.05f 
             
-            // Fall until way past screen bottom
             if (p.y > screenHeight + 200f) {
                 p.y = -50f
                 p.x = Random.nextFloat() * 1400f
@@ -139,7 +138,7 @@ fun CelebrationOverlay(visible: Boolean) {
     if (!visible) return
     
     val config = LocalConfiguration.current
-    val screenHeight = config.screenHeightDp.dp.value * config.densityDpi / 160f // Estimate pixels
+    val screenHeight = config.screenHeightDp.dp.value * config.densityDpi / 160f
     
     val confettiState = remember { OptimizedConfettiState(screenHeight + 1000f) }
     
@@ -149,8 +148,8 @@ fun CelebrationOverlay(visible: Boolean) {
         }
     }
 
-    // Force Z-Index to MAX to cover everything
-    Canvas(modifier = Modifier.fillMaxSize().zIndex(Float.MAX_VALUE)) {
+    // FIX: Removed .zIndex(Float.MAX_VALUE) so parents can control layering
+    Canvas(modifier = Modifier.fillMaxSize()) {
         confettiState.particles.forEach { p ->
             rotate(p.rotation, pivot = Offset(p.x, p.y)) {
                 drawRect(

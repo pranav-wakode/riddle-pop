@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
-// Existing Score Table
+// User Score History
 @Entity(tableName = "user_scores")
 data class UserScore(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -13,12 +13,13 @@ data class UserScore(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-// NEW: Level Progress Table
+// Level Progress (Updated with lastQuestionIndex)
 @Entity(tableName = "level_progress")
 data class LevelProgress(
-    @PrimaryKey val levelId: Int, // 1, 2, 3
+    @PrimaryKey val levelId: Int,
     val isUnlocked: Boolean = false,
-    val stars: Int = 0 // 0 to 3
+    val stars: Int = 0,
+    val lastQuestionIndex: Int = 0 // NEW: Remembers which riddle you are on
 )
 
 @Dao
@@ -40,7 +41,7 @@ interface ScoreDao {
     suspend fun updateLevelProgress(progress: LevelProgress)
 }
 
-@Database(entities = [UserScore::class, LevelProgress::class], version = 4, exportSchema = false) // Bumped to 4
+@Database(entities = [UserScore::class, LevelProgress::class], version = 5, exportSchema = false) // Bumped to 5
 abstract class AppDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
 
@@ -55,7 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "neon_puzzle_db"
                 )
-                .fallbackToDestructiveMigration() // Wipes data on update (Safe for dev)
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance

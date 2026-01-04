@@ -1,9 +1,12 @@
 package com.example.neonpuzzle.ui.quiz
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -23,9 +27,12 @@ import com.example.neonpuzzle.ui.theme.*
 
 @Composable
 fun QuizScreen(
-    levelId: Int, // Received from Navigation
-    onBack: () -> Unit
+    levelId: Int,
+    onBack: () -> Unit,
+    onNextLevel: () -> Unit
 ) {
+    BackHandler(onBack = onBack)
+
     val context = LocalContext.current
     val db = remember { AppDatabase.getDatabase(context) }
     
@@ -38,14 +45,12 @@ fun QuizScreen(
         }
     )
 
-    // Load level once when entering
     LaunchedEffect(levelId) {
         viewModel.loadLevel(levelId)
     }
 
     val uiState by viewModel.uiState.collectAsState()
     val currentQuestion = viewModel.getCurrentQuestion()
-
     val shakeOffset by animateFloatAsState(targetValue = if (uiState.isWrong) 30f else 0f, label = "shake")
 
     Box(
@@ -53,105 +58,125 @@ fun QuizScreen(
             .fillMaxSize()
             .background(MainBackgroundBrush)
             .statusBarsPadding()
-            .padding(16.dp)
     ) {
-        // --- HEADER ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // --- GAME CONTENT ---
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            NeonButton("EXIT", onClick = onBack, color = ErrorRed, modifier = Modifier.height(48.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(viewModel.getCurrentLevelTitle(), color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text("${uiState.score}", color = PrimaryAction, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(viewModel.getCurrentLevelTitle().uppercase(), color = TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("IQ: ", color = TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("${uiState.score}", color = PrimaryAction, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+
+            // Riddle Area
+            if (currentQuestion != null && !uiState.isGameOver) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(x = shakeOffset.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (uiState.currentQuestionIndex > 0) {
+                            Text(
+                                text = "< PREV",
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable { viewModel.previousQuestion() }
+                            )
+                        } else {
+                            Spacer(Modifier.width(1.dp))
+                        }
+                        Text("RIDDLE ${uiState.currentQuestionIndex + 1}", color = SecondaryAction, fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Spacer(Modifier.width(40.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    NeonCard(modifier = Modifier.fillMaxWidth()) {
+                        Text(currentQuestion.question, color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 32.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    NeonTextField(
+                        value = uiState.answerInput,
+                        onValueChange = { viewModel.onInputChange(it) },
+                        label = "WHO AM I?",
+                        isError = uiState.isWrong
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (uiState.hintText == null) {
+                            NeonButton("?", onClick = { viewModel.useHint() }, color = SecondaryAction, modifier = Modifier.width(60.dp))
+                        }
+                        NeonButton("SUBMIT", onClick = { viewModel.submitAnswer() }, color = PrimaryAction, modifier = Modifier.weight(1f))
+                    }
+
+                    if (uiState.hintText != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("HINT: ${uiState.hintText}", color = AccentYellow, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
+                    }
+                }
             }
         }
 
+        // --- OVERLAYS ---
+
         if (uiState.isGameOver) {
-             NeonCard(modifier = Modifier.align(Alignment.Center)) {
-                Text("LEVEL COMPLETE!", color = SuccessGreen, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Score: ${uiState.score}/50", color = TextPrimary, fontSize = 24.sp)
-                Spacer(modifier = Modifier.height(32.dp))
-                NeonButton("CONTINUE", onClick = onBack, color = SecondaryAction)
-            }
+            // 1. Confetti (Bottom Layer) - Rendered First
             CelebrationOverlay(visible = true)
-        } else if (currentQuestion != null) {
-            // --- MAIN CONTENT ---
-            Column(
+            
+            // 2. Card (Top Layer) - Rendered Second
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset(x = shakeOffset.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(enabled = true) {} // Blocks clicks to game, but accepts clicks for buttons
             ) {
-                Text(
-                    text = "Q: ${uiState.currentQuestionIndex + 1}",
-                    color = SecondaryAction,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                NeonCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = currentQuestion.question,
-                        color = TextPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 32.sp
-                    )
+                NeonCard(modifier = Modifier.align(Alignment.Center)) {
+                    Text("LEVEL COMPLETE!", color = SuccessGreen, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Total Score: ${uiState.score}", color = TextPrimary, fontSize = 24.sp)
+                    Spacer(modifier = Modifier.height(32.dp))
+                    NeonButton("NEXT LEVEL", onClick = onNextLevel, color = PrimaryAction)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    NeonButton("MENU", onClick = onBack, color = SecondaryAction)
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                NeonTextField(
-                    value = uiState.answerInput,
-                    onValueChange = { viewModel.onInputChange(it) },
-                    label = "WHO AM I?",
-                    isError = uiState.isWrong
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (uiState.hintText != null) {
-                    Text(text = "Hint: ${uiState.hintText}", color = AccentYellow, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                } else {
-                    TextButton(onClick = { viewModel.useHint() }) {
-                        Text("Need a Clue? (-2 pts)", color = SecondaryAction)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                NeonButton(
-                    text = "SOLVE",
-                    onClick = { viewModel.submitAnswer() },
-                    color = PrimaryAction,
-                    modifier = Modifier.fillMaxWidth(0.8f)
-                )
             }
-            
-            // --- SUCCESS OVERLAY ---
-            if (uiState.isCorrect) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable(enabled = false) {} 
-                )
-                
+        }
+
+        if (uiState.isCorrect) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(enabled = false) {} 
+            ) {
                 CelebrationOverlay(visible = true)
-                
                 NeonCard(modifier = Modifier.align(Alignment.Center)) {
                     Text("BRILLIANT!", color = SuccessGreen, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("+${uiState.lastPointsEarned} Points", color = TextSecondary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Next riddle...", color = SecondaryAction)
                 }
             }
         }

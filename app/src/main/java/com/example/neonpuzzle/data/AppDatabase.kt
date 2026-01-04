@@ -2,8 +2,9 @@ package com.example.neonpuzzle.data
 
 import android.content.Context
 import androidx.room.*
-import kotlinx.coroutines.flow.Flow // Import Flow
+import kotlinx.coroutines.flow.Flow
 
+// Existing Score Table
 @Entity(tableName = "user_scores")
 data class UserScore(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -12,17 +13,34 @@ data class UserScore(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+// NEW: Level Progress Table
+@Entity(tableName = "level_progress")
+data class LevelProgress(
+    @PrimaryKey val levelId: Int, // 1, 2, 3
+    val isUnlocked: Boolean = false,
+    val stars: Int = 0 // 0 to 3
+)
+
 @Dao
 interface ScoreDao {
     @Insert
     suspend fun insertScore(score: UserScore)
 
-    // Changed to return Flow. This makes it "Live"
     @Query("SELECT * FROM user_scores")
     fun getAllScoresFlow(): Flow<List<UserScore>>
+    
+    // --- LEVEL METHODS ---
+    @Query("SELECT * FROM level_progress")
+    fun getLevelProgressFlow(): Flow<List<LevelProgress>>
+    
+    @Query("SELECT * FROM level_progress WHERE levelId = :id")
+    suspend fun getLevelStatus(id: Int): LevelProgress?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateLevelProgress(progress: LevelProgress)
 }
 
-@Database(entities = [UserScore::class], version = 3, exportSchema = false) // Bumped version
+@Database(entities = [UserScore::class, LevelProgress::class], version = 4, exportSchema = false) // Bumped to 4
 abstract class AppDatabase : RoomDatabase() {
     abstract fun scoreDao(): ScoreDao
 
@@ -37,7 +55,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "neon_puzzle_db"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration() // Wipes data on update (Safe for dev)
                 .build()
                 INSTANCE = instance
                 instance

@@ -22,7 +22,10 @@ import com.example.neonpuzzle.ui.components.*
 import com.example.neonpuzzle.ui.theme.*
 
 @Composable
-fun QuizScreen(onBack: () -> Unit) {
+fun QuizScreen(
+    levelId: Int, // Received from Navigation
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val db = remember { AppDatabase.getDatabase(context) }
     
@@ -34,6 +37,11 @@ fun QuizScreen(onBack: () -> Unit) {
             }
         }
     )
+
+    // Load level once when entering
+    LaunchedEffect(levelId) {
+        viewModel.loadLevel(levelId)
+    }
 
     val uiState by viewModel.uiState.collectAsState()
     val currentQuestion = viewModel.getCurrentQuestion()
@@ -55,21 +63,21 @@ fun QuizScreen(onBack: () -> Unit) {
         ) {
             NeonButton("EXIT", onClick = onBack, color = ErrorRed, modifier = Modifier.height(48.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text("SCORE", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(viewModel.getCurrentLevelTitle(), color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text("${uiState.score}", color = PrimaryAction, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
 
         if (uiState.isGameOver) {
              NeonCard(modifier = Modifier.align(Alignment.Center)) {
-                Text("BRAIN MASTER!", color = PrimaryAction, fontSize = 32.sp, fontWeight = FontWeight.Black)
+                Text("LEVEL COMPLETE!", color = SuccessGreen, fontSize = 28.sp, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Final Score: ${uiState.score}", color = TextPrimary, fontSize = 24.sp)
+                Text("Score: ${uiState.score}/50", color = TextPrimary, fontSize = 24.sp)
                 Spacer(modifier = Modifier.height(32.dp))
-                NeonButton("RETURN", onClick = onBack, color = SecondaryAction)
+                NeonButton("CONTINUE", onClick = onBack, color = SecondaryAction)
             }
             CelebrationOverlay(visible = true)
-        } else {
+        } else if (currentQuestion != null) {
             // --- MAIN CONTENT ---
             Column(
                 modifier = Modifier
@@ -79,7 +87,7 @@ fun QuizScreen(onBack: () -> Unit) {
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "RIDDLE ${uiState.currentQuestionIndex + 1}/50",
+                    text = "Q: ${uiState.currentQuestionIndex + 1}",
                     color = SecondaryAction,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -141,12 +149,9 @@ fun QuizScreen(onBack: () -> Unit) {
                 NeonCard(modifier = Modifier.align(Alignment.Center)) {
                     Text("BRILLIANT!", color = SuccessGreen, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // FIX: Dynamic Points Display
                     Text("+${uiState.lastPointsEarned} Points", color = TextSecondary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Loading next riddle...", color = SecondaryAction)
+                    Text("Next riddle...", color = SecondaryAction)
                 }
             }
         }

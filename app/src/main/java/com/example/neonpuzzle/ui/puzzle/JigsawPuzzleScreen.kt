@@ -52,19 +52,16 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
 
     val uiState by viewModel.uiState.collectAsState()
     
-    // Layout State
     var gridPosition by remember { mutableStateOf(Offset.Zero) }
     var gridSize by remember { mutableStateOf(IntSize.Zero) }
     var trayPosition by remember { mutableStateOf(Offset.Zero) }
     var traySize by remember { mutableStateOf(IntSize.Zero) }
     
-    // Game State
     var hasScattered by remember { mutableStateOf(false) }
-    var showHint by remember { mutableStateOf(false) } // State for Hint
+    var showHint by remember { mutableStateOf(false) }
     var selectedDifficulty by remember { mutableStateOf("EASY") }
-    var currentlyDraggingId by remember { mutableStateOf<Int?>(null) } 
+    var currentlyDraggingId by remember { mutableStateOf<Int?>(null) }
 
-    // Restart game when difficulty changes (if image exists)
     LaunchedEffect(selectedDifficulty) {
         if (uiState.sourceImage != null) {
             viewModel.initializeGame(uiState.sourceImage!!, selectedDifficulty)
@@ -72,7 +69,6 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
         }
     }
 
-    // Scatter pieces to tray once layout is ready
     LaunchedEffect(traySize, uiState.pieces) {
         if (!hasScattered && traySize.height > 0 && uiState.pieces.isNotEmpty()) {
             viewModel.scatterPiecesInTray(
@@ -90,7 +86,6 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
         uri?.let {
             val inputStream: InputStream? = context.contentResolver.openInputStream(it)
             val bitmap = BitmapFactory.decodeStream(inputStream)
-            // Always crop to square for consistency
             val square = PuzzleUtils.getCroppedSquare(bitmap)
             val scaled = android.graphics.Bitmap.createScaledBitmap(square, 900, 900, true)
             viewModel.initializeGame(scaled, selectedDifficulty) 
@@ -111,8 +106,6 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NeonButton("EXIT", onClick = onBack, color = ErrorRed, modifier = Modifier.height(45.dp))
-                
-                // HINT BUTTON (Visible only when game starts)
                 if (uiState.sourceImage != null) {
                     NeonButton(
                         text = if(showHint) "HIDE HINT" else "SHOW HINT",
@@ -124,7 +117,7 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
             }
 
             if (uiState.sourceImage == null) {
-                // --- SETUP SCREEN ---
+                // ... (Setup UI same as before) ...
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -133,9 +126,19 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                     Text("JIGSAW POP", color = PrimaryAction, fontSize = 40.sp, fontWeight = FontWeight.Black)
                     Spacer(modifier = Modifier.height(24.dp))
                     
+                    Text("DIFFICULTY: $selectedDifficulty", color = TextSecondary, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NeonButton("EASY", onClick = { selectedDifficulty = "EASY" }, 
+                            color = if(selectedDifficulty=="EASY") SuccessGreen else Color.LightGray, modifier = Modifier.height(40.dp))
+                        NeonButton("MED", onClick = { selectedDifficulty = "MEDIUM" }, 
+                            color = if(selectedDifficulty=="MEDIUM") AccentYellow else Color.LightGray, modifier = Modifier.height(40.dp))
+                        NeonButton("HARD", onClick = { selectedDifficulty = "HARD" }, 
+                            color = if(selectedDifficulty=="HARD") ErrorRed else Color.LightGray, modifier = Modifier.height(40.dp))
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     NeonCard {
-                        Text("START NEW GAME", color = TextSecondary)
-                        Spacer(modifier = Modifier.height(16.dp))
                         NeonButton("GALLERY", onClick = { launcher.launch("image/*") }, color = SecondaryAction)
                         Spacer(modifier = Modifier.height(12.dp))
                         NeonButton("DEFAULT", onClick = { 
@@ -160,11 +163,9 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // The Target Board
                     Box(
                         modifier = Modifier
-                            .size(320.dp) // Fixed square board
+                            .size(320.dp)
                             .shadow(10.dp)
                             .background(Color.White)
                             .border(4.dp, PrimaryAction.copy(alpha=0.3f))
@@ -173,66 +174,37 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                                 gridSize = coordinates.size
                             }
                     ) {
-                        // 1. GHOST IMAGE (The Hint)
-                        // This renders the faded original image behind the pieces
                         if (showHint && uiState.sourceImage != null) {
                             Image(
                                 bitmap = uiState.sourceImage!!.asImageBitmap(),
                                 contentDescription = "Hint",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .alpha(0.5f), // 50% opacity for clear visibility
+                                modifier = Modifier.fillMaxSize().alpha(0.5f),
                                 contentScale = ContentScale.Crop
                             )
                         }
-
-                        // 2. GRID LINES
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val cellW = size.width / uiState.cols
                             val cellH = size.height / uiState.rows
-                            
-                            // Draw columns
                             for (i in 1 until uiState.cols) {
-                                drawLine(
-                                    Color.Gray.copy(alpha=0.5f), 
-                                    start = Offset(i * cellW, 0f), 
-                                    end = Offset(i * cellW, size.height), 
-                                    strokeWidth = 2f
-                                )
+                                drawLine(Color.Gray.copy(alpha=0.5f), start = Offset(i * cellW, 0f), end = Offset(i * cellW, size.height), strokeWidth = 2f)
                             }
-                            // Draw rows
                             for (i in 1 until uiState.rows) {
-                                drawLine(
-                                    Color.Gray.copy(alpha=0.5f), 
-                                    start = Offset(0f, i * cellH), 
-                                    end = Offset(size.width, i * cellH), 
-                                    strokeWidth = 2f
-                                )
+                                drawLine(Color.Gray.copy(alpha=0.5f), start = Offset(0f, i * cellH), end = Offset(size.width, i * cellH), strokeWidth = 2f)
                             }
                         }
                     }
-                    
                     Spacer(modifier = Modifier.weight(1f))
-
-                    // --- DIFFICULTY BUTTONS ---
+                    // Difficulty in-game
                     Text("DIFFICULTY", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        NeonButton("EASY", onClick = { selectedDifficulty = "EASY" }, 
-                            color = if(selectedDifficulty=="EASY") SuccessGreen else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
-                        NeonButton("MED", onClick = { selectedDifficulty = "MEDIUM" }, 
-                            color = if(selectedDifficulty=="MEDIUM") AccentYellow else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
-                        NeonButton("HARD", onClick = { selectedDifficulty = "HARD" }, 
-                            color = if(selectedDifficulty=="HARD") ErrorRed else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        NeonButton("EASY", onClick = { selectedDifficulty = "EASY" }, color = if(selectedDifficulty=="EASY") SuccessGreen else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
+                        NeonButton("MED", onClick = { selectedDifficulty = "MEDIUM" }, color = if(selectedDifficulty=="MEDIUM") AccentYellow else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
+                        NeonButton("HARD", onClick = { selectedDifficulty = "HARD" }, color = if(selectedDifficulty=="HARD") ErrorRed else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
                     }
-                    
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // --- PIECE TRAY (Bottom Area) ---
+                // --- PIECE TRAY ---
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -249,58 +221,56 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
             }
         }
 
-        // --- PIECES LAYER (Global Overlay) ---
-        // Rendered last to ensure they float above everything
+        // --- PIECES LAYER ---
         if (uiState.sourceImage != null && gridSize.width > 0) {
             val cellWidth = gridSize.width.toFloat() / uiState.cols
             val cellHeight = gridSize.height.toFloat() / uiState.rows
             
             uiState.pieces.forEach { piece ->
-                val density = context.resources.displayMetrics.density
-                val widthDp = (cellWidth / density).dp
-                val heightDp = (cellHeight / density).dp
-                
-                // Dynamic Z-Index: 
-                // 100f = Currently Dragging (Highest)
-                // 10f = Unsnapped (Middle)
-                // 0f = Snapped (Bottom, on board)
-                val zIndex = when {
-                    piece.id == currentlyDraggingId -> 100f 
-                    piece.isSnapped -> 0f
-                    else -> 10f
-                }
+                // FIX: Use key(piece.id) to prevent state reset on list reorder
+                key(piece.id) {
+                    val density = context.resources.displayMetrics.density
+                    val widthDp = (cellWidth / density).dp
+                    val heightDp = (cellHeight / density).dp
+                    
+                    val zIndex = when {
+                        piece.id == currentlyDraggingId -> 100f 
+                        piece.isSnapped -> 0f
+                        else -> 10f
+                    }
 
-                Image(
-                    bitmap = piece.bitmap.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier
-                        .offset { 
-                            androidx.compose.ui.unit.IntOffset(
-                                piece.currentOffset.x.toInt(),
-                                piece.currentOffset.y.toInt()
-                            ) 
-                        }
-                        .size(widthDp, heightDp)
-                        .shadow(if(piece.isSnapped) 0.dp else 6.dp) // Drop shadow for floating effect
-                        .border(1.dp, if(piece.isSnapped) Color.Transparent else Color.White)
-                        .zIndex(zIndex) // Apply Z-Index
-                        .pointerInput(Unit) {
-                            detectDragGestures(
-                                onDragStart = { 
-                                    currentlyDraggingId = piece.id // Track dragged piece
-                                    viewModel.onPieceDragStart(piece.id)
-                                },
-                                onDragEnd = { 
-                                    currentlyDraggingId = null
-                                    viewModel.onPieceRelease(piece.id, gridPosition, cellWidth, cellHeight) 
-                                }
-                            ) { change, dragAmount ->
-                                change.consume()
-                                viewModel.onPieceDrag(piece.id, dragAmount)
+                    Image(
+                        bitmap = piece.bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier
+                            .offset { 
+                                androidx.compose.ui.unit.IntOffset(
+                                    piece.currentOffset.x.toInt(),
+                                    piece.currentOffset.y.toInt()
+                                ) 
                             }
-                        }
-                )
+                            .size(widthDp, heightDp)
+                            .shadow(if(piece.isSnapped) 0.dp else 6.dp)
+                            .border(1.dp, if(piece.isSnapped) Color.Transparent else Color.White)
+                            .zIndex(zIndex)
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = { 
+                                        currentlyDraggingId = piece.id
+                                        viewModel.onPieceDragStart(piece.id) 
+                                    },
+                                    onDragEnd = { 
+                                        currentlyDraggingId = null
+                                        viewModel.onPieceRelease(piece.id, gridPosition, cellWidth, cellHeight) 
+                                    }
+                                ) { change, dragAmount ->
+                                    change.consume()
+                                    viewModel.onPieceDrag(piece.id, dragAmount)
+                                }
+                            }
+                    )
+                }
             }
         }
 
@@ -311,16 +281,15 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.6f))
                     .clickable(enabled = false) {}
-                    .zIndex(200f) // Highest layer
+                    .zIndex(200f)
             ) {
                 CelebrationOverlay(visible = true)
                 NeonCard(modifier = Modifier.align(Alignment.Center)) {
                     Text("MASTER BUILDER!", color = SuccessGreen, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
                     NeonButton("PLAY AGAIN", onClick = { 
-                         // Reset with same difficulty
                          viewModel.initializeGame(uiState.sourceImage!!, selectedDifficulty)
-                         hasScattered = false // Scatter new pieces
+                         hasScattered = false
                     })
                     Spacer(modifier = Modifier.height(8.dp))
                     NeonButton("MENU", onClick = onBack, color = SecondaryAction)

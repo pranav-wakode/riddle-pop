@@ -61,7 +61,6 @@ fun QuizScreen(onBack: () -> Unit) {
         }
 
         if (uiState.isGameOver) {
-            // ... Game Over UI (Same as before) ...
              NeonCard(modifier = Modifier.align(Alignment.Center)) {
                 Text("BRAIN MASTER!", color = PrimaryAction, fontSize = 32.sp, fontWeight = FontWeight.Black)
                 Spacer(modifier = Modifier.height(16.dp))
@@ -128,14 +127,13 @@ fun QuizScreen(onBack: () -> Unit) {
                 )
             }
             
-            // --- SUCCESS OVERLAY (Fixes Overlap) ---
+            // --- SUCCESS OVERLAY ---
             if (uiState.isCorrect) {
-                // Dim background
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable(enabled = false) {} // Block clicks
+                        .clickable(enabled = false) {} 
                 )
                 
                 CelebrationOverlay(visible = true)
@@ -143,7 +141,10 @@ fun QuizScreen(onBack: () -> Unit) {
                 NeonCard(modifier = Modifier.align(Alignment.Center)) {
                     Text("BRILLIANT!", color = SuccessGreen, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("+10 Points", color = TextSecondary, fontSize = 20.sp)
+                    
+                    // FIX: Dynamic Points Display
+                    Text("+${uiState.lastPointsEarned} Points", color = TextSecondary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Loading next riddle...", color = SecondaryAction)
                 }

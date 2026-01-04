@@ -52,16 +52,19 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
 
     val uiState by viewModel.uiState.collectAsState()
     
+    // --- LAYOUT STATE ---
     var gridPosition by remember { mutableStateOf(Offset.Zero) }
     var gridSize by remember { mutableStateOf(IntSize.Zero) }
     var trayPosition by remember { mutableStateOf(Offset.Zero) }
     var traySize by remember { mutableStateOf(IntSize.Zero) }
     
+    // --- GAME STATE ---
     var hasScattered by remember { mutableStateOf(false) }
-    var showHint by remember { mutableStateOf(false) }
+    var showHint by remember { mutableStateOf(false) } // Controls Ghost Image
     var selectedDifficulty by remember { mutableStateOf("EASY") }
-    var currentlyDraggingId by remember { mutableStateOf<Int?>(null) }
+    var currentlyDraggingId by remember { mutableStateOf<Int?>(null) } 
 
+    // Reset when Difficulty changes
     LaunchedEffect(selectedDifficulty) {
         if (uiState.sourceImage != null) {
             viewModel.initializeGame(uiState.sourceImage!!, selectedDifficulty)
@@ -69,6 +72,7 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
         }
     }
 
+    // Scatter pieces when Tray is ready
     LaunchedEffect(traySize, uiState.pieces) {
         if (!hasScattered && traySize.height > 0 && uiState.pieces.isNotEmpty()) {
             viewModel.scatterPiecesInTray(
@@ -86,6 +90,7 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
         uri?.let {
             val inputStream: InputStream? = context.contentResolver.openInputStream(it)
             val bitmap = BitmapFactory.decodeStream(inputStream)
+            // Ensure square crop for perfect aspect ratio
             val square = PuzzleUtils.getCroppedSquare(bitmap)
             val scaled = android.graphics.Bitmap.createScaledBitmap(square, 900, 900, true)
             viewModel.initializeGame(scaled, selectedDifficulty) 
@@ -106,6 +111,8 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NeonButton("EXIT", onClick = onBack, color = ErrorRed, modifier = Modifier.height(45.dp))
+                
+                // HINT BUTTON
                 if (uiState.sourceImage != null) {
                     NeonButton(
                         text = if(showHint) "HIDE HINT" else "SHOW HINT",
@@ -117,7 +124,7 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
             }
 
             if (uiState.sourceImage == null) {
-                // ... (Setup UI same as before) ...
+                // --- SETUP SCREEN ---
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -157,15 +164,17 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                     }
                 }
             } else {
-                // --- GAME BOARD AREA ---
+                // --- GAME AREA ---
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // --- PUZZLE BOARD ---
                     Box(
                         modifier = Modifier
-                            .size(320.dp)
+                            .size(320.dp) // Fixed square board
                             .shadow(10.dp)
                             .background(Color.White)
                             .border(4.dp, PrimaryAction.copy(alpha=0.3f))
@@ -174,14 +183,19 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                                 gridSize = coordinates.size
                             }
                     ) {
+                        // 1. GHOST IMAGE LAYER (The Hint)
                         if (showHint && uiState.sourceImage != null) {
                             Image(
                                 bitmap = uiState.sourceImage!!.asImageBitmap(),
                                 contentDescription = "Hint",
-                                modifier = Modifier.fillMaxSize().alpha(0.5f),
-                                contentScale = ContentScale.Crop
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .alpha(0.5f), // 50% opacity
+                                contentScale = ContentScale.FillBounds // Match pieces exactly
                             )
                         }
+
+                        // 2. GRID LINES LAYER
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val cellW = size.width / uiState.cols
                             val cellH = size.height / uiState.rows
@@ -193,8 +207,10 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                             }
                         }
                     }
+                    
                     Spacer(modifier = Modifier.weight(1f))
-                    // Difficulty in-game
+
+                    // Difficulty Switcher (In-Game)
                     Text("DIFFICULTY", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                         NeonButton("EASY", onClick = { selectedDifficulty = "EASY" }, color = if(selectedDifficulty=="EASY") SuccessGreen else Color.LightGray, modifier = Modifier.height(45.dp).weight(1f))
@@ -221,18 +237,19 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
             }
         }
 
-        // --- PIECES LAYER ---
+        // --- PIECES LAYER (Draggable Items) ---
         if (uiState.sourceImage != null && gridSize.width > 0) {
             val cellWidth = gridSize.width.toFloat() / uiState.cols
             val cellHeight = gridSize.height.toFloat() / uiState.rows
             
             uiState.pieces.forEach { piece ->
-                // FIX: Use key(piece.id) to prevent state reset on list reorder
+                // KEY FIX: Prevents "Ghost Touch" / Drag cancellation
                 key(piece.id) {
                     val density = context.resources.displayMetrics.density
                     val widthDp = (cellWidth / density).dp
                     val heightDp = (cellHeight / density).dp
                     
+                    // Z-Index: Dragged > Unsnapped > Snapped
                     val zIndex = when {
                         piece.id == currentlyDraggingId -> 100f 
                         piece.isSnapped -> 0f
@@ -258,7 +275,7 @@ fun JigsawPuzzleScreen(onBack: () -> Unit) {
                                 detectDragGestures(
                                     onDragStart = { 
                                         currentlyDraggingId = piece.id
-                                        viewModel.onPieceDragStart(piece.id) 
+                                        viewModel.onPieceDragStart(piece.id) // Helper to move to top of list
                                     },
                                     onDragEnd = { 
                                         currentlyDraggingId = null
